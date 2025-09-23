@@ -12,12 +12,7 @@ import java.awt.GridLayout;
 import java.awt.Insets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
@@ -40,36 +35,44 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-import com.uam.repositories.*;
-import com.uam.models.*;
-import com.uam.services.*;
+
+import com.uam.models.Equipe;
+import com.uam.models.ProjectStatus;
+import com.uam.models.Projeto;
+import com.uam.models.Role;
+import com.uam.models.Usuario;
+import com.uam.repositories.EquipeRepository;
+import com.uam.repositories.ProjetoRepository;
+import com.uam.repositories.UsuarioRepository;
+import com.uam.services.EquipeService;
+import com.uam.services.ProjetoService;
+import com.uam.services.UsuarioService;
 
 
 public class ProjetoEEquipes {
     // Repositórios
-    private final UserRepository userRepo = new UserRepository();
-    private final ProjectRepository projectRepo = new ProjectRepository();
-    private final TeamRepository teamRepo = new TeamRepository();
+    private final UsuarioRepository usuarioRepo = new UsuarioRepository();
+    private final ProjetoRepository projetoRepo = new ProjetoRepository();
+    private final EquipeRepository equipeRepo = new EquipeRepository();
 
     // Serviços
-    private final UserService userService = new UserService(userRepo);
-    private final ProjectService projectService = new ProjectService(projectRepo, userRepo);
-    private final TeamService teamService = new TeamService(teamRepo, userRepo, projectRepo);
+    private final UsuarioService usuarioService = new UsuarioService(usuarioRepo);
+    private final ProjetoService projetoService = new ProjetoService(projetoRepo, usuarioRepo);
+    private final EquipeService equipeService = new EquipeService(equipeRepo, usuarioRepo, projetoRepo);
 
     // UI
     private final JFrame frame = new JFrame("Projeto e Equipes");
 
     // Models compartilhados (para atualização fácil)
-    private final DefaultListModel<User> usersListModel = new DefaultListModel<>();
-    private final DefaultListModel<Project> projectsListModel = new DefaultListModel<>();
-    private final DefaultListModel<Team> teamsListModel = new DefaultListModel<>();
-    private final DefaultComboBoxModel<User> gerenteComboModel = new DefaultComboBoxModel<>();
+    private final DefaultListModel<Usuario> usersListModel = new DefaultListModel<>();
+    private final DefaultListModel<Projeto> projectsListModel = new DefaultListModel<>();
+    private final DefaultListModel<Equipe> teamsListModel = new DefaultListModel<>();
+    private final DefaultComboBoxModel<Usuario> gerenteComboModel = new DefaultComboBoxModel<>();
 
     // Models para as listas locais da aba de equipes
-    private final DefaultListModel<User> availableUsersModel = new DefaultListModel<>();
-    private final DefaultListModel<Project> availableProjectsModel = new DefaultListModel<>();
+    private final DefaultListModel<Usuario> availableUsersModel = new DefaultListModel<>();
+    private final DefaultListModel<Projeto> availableProjectsModel = new DefaultListModel<>();
 
     // Formatador de datas
     private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -240,17 +243,17 @@ public class ProjetoEEquipes {
 
     private void initDummyData() {
         // cria alguns usuários iniciais
-        User admin = userService.criarUsuario("Admin System", "00000000000", "admin@ex.com", "Administrador", "admin", "admin", Role.ADMINISTRADOR);
-        User gerente = userService.criarUsuario("Maria Gerente", "11111111111", "maria@ex.com", "Gerente de Projetos", "maria", "senha", Role.GERENTE);
-        User colab1 = userService.criarUsuario("João Colaborador", "22222222222", "joao@ex.com", "Desenvolvedor", "joao", "1234", Role.COLABORADOR);
+        Usuario admin = usuarioService.criarUsuario("Admin System", "00000000000", "admin@ex.com", "Administrador", "admin", "admin", Role.ADMINISTRADOR);
+        Usuario gerente = usuarioService.criarUsuario("Maria Gerente", "11111111111", "maria@ex.com", "Gerente de Projetos", "maria", "senha", Role.GERENTE);
+        Usuario colab1 = usuarioService.criarUsuario("João Colaborador", "22222222222", "joao@ex.com", "Desenvolvedor", "joao", "1234", Role.COLABORADOR);
 
-        Project p = projectService.criarProjeto("Projeto Alpha", "Projeto piloto", LocalDate.now(), LocalDate.now().plusMonths(2), ProjectStatus.EM_ANDAMENTO, gerente);
+        Projeto p = projetoService.criarProjeto("Projeto Alpha", "Projeto piloto", LocalDate.now(), LocalDate.now().plusMonths(2), ProjectStatus.EM_ANDAMENTO, gerente);
 
-        Team t = teamService.criarEquipe("Equipe A", "Equipe de desenvolvimento A");
-        teamService.adicionarMembro(t, gerente);
-        teamService.adicionarMembro(t, colab1);
-        teamService.adicionarMembro(t, admin);
-        teamService.associarProjeto(t, p);
+        Equipe t = equipeService.criarEquipe("Equipe A", "Equipe de desenvolvimento A");
+        equipeService.adicionarMembro(t, gerente);
+        equipeService.adicionarMembro(t, colab1);
+        equipeService.adicionarMembro(t, admin);
+        equipeService.associarProjeto(t, p);
 
         refreshAllModels();
     }
@@ -336,7 +339,7 @@ public class ProjetoEEquipes {
                 BorderFactory.createEmptyBorder(8, 12, 8, 12)
         ));
 
-        JComboBox<Role> perfilBox = new JComboBox<>(Role.values());
+        JComboBox<String> perfilBox = new JComboBox<>(new String[]{"ADMINISTRADOR", "GERENTE", "COLABORADOR"});
         perfilBox.setFont(FONT_LABEL);
         perfilBox.setBackground(BG_SECONDARY);
 
@@ -367,7 +370,7 @@ public class ProjetoEEquipes {
         listCard.add(listTitle, BorderLayout.NORTH);
 
         // Lista estilizada
-        JList<User> userList = new JList<>(usersListModel);
+        JList<Usuario> userList = new JList<>(usersListModel);
         userList.setFont(FONT_LABEL);
         userList.setBackground(BG_SECONDARY);
         userList.setSelectionBackground(PRIMARY_COLOR);
@@ -388,9 +391,10 @@ public class ProjetoEEquipes {
                 String cargo = cargoField.getText().trim();
                 String login = loginField.getText().trim();
                 String senha = new String(senhaField.getPassword());
-                Role perfil = (Role) perfilBox.getSelectedItem();
+                String tipoUsuario = (String) perfilBox.getSelectedItem();
+                Role perfil = Role.valueOf(tipoUsuario);
 
-                userService.criarUsuario(nome, cpf, email, cargo, login, senha, perfil);
+                usuarioService.criarUsuario(nome, cpf, email, cargo, login, senha, perfil);
                 JOptionPane.showMessageDialog(frame, "Usuário criado com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
                 clearUserForm(nomeField, cpfField, emailField, cargoField, loginField, senhaField);
                 refreshAllModels();
@@ -443,7 +447,7 @@ public class ProjetoEEquipes {
         statusBox.setFont(FONT_LABEL);
         statusBox.setBackground(BG_SECONDARY);
 
-        JComboBox<User> gerenteBox = new JComboBox<>(gerenteComboModel);
+        JComboBox<Usuario> gerenteBox = new JComboBox<>(gerenteComboModel);
         gerenteBox.setFont(FONT_LABEL);
         gerenteBox.setBackground(BG_SECONDARY);
 
@@ -473,7 +477,7 @@ public class ProjetoEEquipes {
         listCard.add(listTitle, BorderLayout.NORTH);
 
         // Lista estilizada
-        JList<Project> projList = new JList<>(projectsListModel);
+        JList<Projeto> projList = new JList<>(projectsListModel);
         projList.setFont(FONT_LABEL);
         projList.setBackground(BG_SECONDARY);
         projList.setSelectionBackground(PRIMARY_COLOR);
@@ -493,9 +497,9 @@ public class ProjetoEEquipes {
                 LocalDate di = parseDateOrNull(dataInicioField.getText().trim());
                 LocalDate dt = parseDateOrNull(dataTerminoField.getText().trim());
                 ProjectStatus status = (ProjectStatus) statusBox.getSelectedItem();
-                User gerente = (User) gerenteBox.getSelectedItem();
+                Usuario gerente = (Usuario) gerenteBox.getSelectedItem();
 
-                projectService.criarProjeto(nome, desc, di, dt, status, gerente);
+                projetoService.criarProjeto(nome, desc, di, dt, status, gerente);
                 JOptionPane.showMessageDialog(frame, "Projeto criado com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
                 clearProjectForm(nomeField, descField, dataInicioField, dataTerminoField);
                 refreshAllModels();
@@ -560,14 +564,14 @@ public class ProjetoEEquipes {
         mainFormPanel.add(selectionLabel, gbc);
 
         // Listas de seleção
-        JList<User> availableUsersList = new JList<>(availableUsersModel);
+        JList<Usuario> availableUsersList = new JList<>(availableUsersModel);
         availableUsersList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         availableUsersList.setFont(FONT_LABEL);
         availableUsersList.setBackground(BG_SECONDARY);
         availableUsersList.setSelectionBackground(SECONDARY_COLOR);
         availableUsersList.setSelectionForeground(TEXT_LIGHT);
 
-        JList<Project> availableProjectsList = new JList<>(availableProjectsModel);
+        JList<Projeto> availableProjectsList = new JList<>(availableProjectsModel);
         availableProjectsList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         availableProjectsList.setFont(FONT_LABEL);
         availableProjectsList.setBackground(BG_SECONDARY);
@@ -624,7 +628,7 @@ public class ProjetoEEquipes {
         listCard.add(listTitle, BorderLayout.NORTH);
 
         // Lista estilizada
-        JList<Team> teamList = new JList<>(teamsListModel);
+        JList<Equipe> teamList = new JList<>(teamsListModel);
         teamList.setFont(FONT_LABEL);
         teamList.setBackground(BG_SECONDARY);
         teamList.setSelectionBackground(PRIMARY_COLOR);
@@ -640,9 +644,9 @@ public class ProjetoEEquipes {
             try {
                 String nome = nomeField.getText().trim();
                 String desc = descField.getText().trim();
-                Team t = teamService.criarEquipe(nome, desc);
-                for (User u : availableUsersList.getSelectedValuesList()) teamService.adicionarMembro(t, u);
-                for (Project p : availableProjectsList.getSelectedValuesList()) teamService.associarProjeto(t, p);
+                Equipe t = equipeService.criarEquipe(nome, desc);
+                for (Usuario u : availableUsersList.getSelectedValuesList()) equipeService.adicionarMembro(t, u);
+                for (Projeto p : availableProjectsList.getSelectedValuesList()) equipeService.associarProjeto(t, p);
                 JOptionPane.showMessageDialog(frame, "Equipe criada com sucesso!", "Sucesso", JOptionPane.INFORMATION_MESSAGE);
                 clearTeamForm(nomeField, descField);
                 // Limpar seleções
@@ -676,13 +680,13 @@ public class ProjetoEEquipes {
         statsPanel.setBackground(BG_PRIMARY);
 
         // Card de Usuários
-        JPanel userCard = createStatsCard("U", "Usuários", String.valueOf(userService.listarUsuarios().size()), PRIMARY_COLOR);
+        JPanel userCard = createStatsCard("U", "Usuários", String.valueOf(usuarioService.listarUsuarios().size()), PRIMARY_COLOR);
 
         // Card de Projetos
-        JPanel projectCard = createStatsCard("P", "Projetos", String.valueOf(projectService.listarProjetos().size()), SECONDARY_COLOR);
+        JPanel projectCard = createStatsCard("P", "Projetos", String.valueOf(projetoService.listarProjetos().size()), SECONDARY_COLOR);
 
         // Card de Equipes
-        JPanel teamCard = createStatsCard("E", "Equipes", String.valueOf(teamService.listarEquipes().size()), ACCENT_COLOR);
+        JPanel teamCard = createStatsCard("E", "Equipes", String.valueOf(equipeService.listarEquipes().size()), ACCENT_COLOR);
 
         statsPanel.add(userCard);
         statsPanel.add(projectCard);
@@ -724,34 +728,34 @@ public class ProjetoEEquipes {
                     java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))).append("\n");
             sb.append("═══════════════════════════════════════════════\n\n");
 
-            sb.append("USUÁRIOS CADASTRADOS (").append(userService.listarUsuarios().size()).append(" total):\n");
+            sb.append("USUÁRIOS CADASTRADOS (").append(usuarioService.listarUsuarios().size()).append(" total):\n");
             sb.append("─────────────────────────────────────────────\n");
-            for (User u : userService.listarUsuarios()) {
+            for (Usuario u : usuarioService.listarUsuarios()) {
                 sb.append(String.format("• %s\n", u.getNomeCompleto()));
-                sb.append(String.format("  ├─ ID: %d | Perfil: %s | Login: %s\n", u.getId(), u.getPerfil(), u.getLogin()));
+                sb.append(String.format("  ├─ ID: %d | Perfil: %s | Login: %s\n", u.getId(), u.getTipoUsuario(), u.getLogin()));
                 sb.append(String.format("  └─ Cargo: %s | Email: %s\n\n", u.getCargo(), u.getEmail()));
             }
 
-            sb.append("\nPROJETOS EM ANDAMENTO (").append(projectService.listarProjetos().size()).append(" total):\n");
+            sb.append("\nPROJETOS EM ANDAMENTO (").append(projetoService.listarProjetos().size()).append(" total):\n");
             sb.append("─────────────────────────────────────────────\n");
-            for (Project p : projectService.listarProjetos()) {
+            for (Projeto p : projetoService.listarProjetos()) {
                 sb.append(String.format("• %s [%s]\n", p.getNome(), p.getStatus()));
                 sb.append(String.format("  ├─ Gerente: %s\n", p.getGerenteResponsavel().getNomeCompleto()));
                 sb.append(String.format("  ├─ Início: %s\n", p.getDataInicio() != null ? p.getDataInicio().toString() : "Não definido"));
                 sb.append(String.format("  └─ Previsão: %s\n\n", p.getDataTerminoPrevisto() != null ? p.getDataTerminoPrevisto().toString() : "Não definido"));
             }
 
-            sb.append("\nEQUIPES FORMADAS (").append(teamService.listarEquipes().size()).append(" total):\n");
+            sb.append("\nEQUIPES FORMADAS (").append(equipeService.listarEquipes().size()).append(" total):\n");
             sb.append("─────────────────────────────────────────────\n");
-            for (Team t : teamService.listarEquipes()) {
+            for (Equipe t : equipeService.listarEquipes()) {
                 sb.append(String.format("• %s\n", t.getNome()));
                 sb.append(String.format("  ├─ Descrição: %s\n", t.getDescricao()));
                 sb.append(String.format("  ├─ Membros (%d):\n", t.getMembros().size()));
-                for (User u : t.getMembros()) {
-                    sb.append(String.format("  │   ◦ %s (%s)\n", u.getNomeCompleto(), u.getPerfil()));
+                for (Usuario u : t.getMembros()) {
+                    sb.append(String.format("  │   ◦ %s (%s)\n", u.getNomeCompleto(), u.getTipoUsuario()));
                 }
                 sb.append(String.format("  └─ Projetos (%d):\n", t.getProjetosAtuando().size()));
-                for (Project p : t.getProjetosAtuando()) {
+                for (Projeto p : t.getProjetosAtuando()) {
                     sb.append(String.format("      ◦ %s [%s]\n", p.getNome(), p.getStatus()));
                 }
                 sb.append("\n");
@@ -820,28 +824,28 @@ public class ProjetoEEquipes {
     private void refreshAllModels() {
         // Atualiza usersListModel
         usersListModel.removeAllElements();
-        for (User u : userService.listarUsuarios()) usersListModel.addElement(u);
+        for (Usuario u : usuarioService.listarUsuarios()) usersListModel.addElement(u);
 
         // Atualiza projectsListModel
         projectsListModel.removeAllElements();
-        for (Project p : projectService.listarProjetos()) projectsListModel.addElement(p);
+        for (Projeto p : projetoService.listarProjetos()) projectsListModel.addElement(p);
 
         // Atualiza teamsListModel
         teamsListModel.removeAllElements();
-        for (Team t : teamService.listarEquipes()) teamsListModel.addElement(t);
+        for (Equipe t : equipeService.listarEquipes()) teamsListModel.addElement(t);
 
-        // Atualiza combo de gerentes (somente usuários com perfil GERENTE ou ADMINISTRADOR)
+        // Atualiza combo de gerentes (somente usuários que podem gerenciar projetos)
         gerenteComboModel.removeAllElements();
-        List<User> gerentes = userService.listarUsuarios().stream()
-                .filter(u -> u.getPerfil() == Role.GERENTE || u.getPerfil() == Role.ADMINISTRADOR)
+        List<Usuario> gerentes = usuarioService.listarUsuarios().stream()
+                .filter(Usuario::podeGerenciarProjetos)
                 .collect(Collectors.toList());
-        for (User g : gerentes) gerenteComboModel.addElement(g);
+        for (Usuario g : gerentes) gerenteComboModel.addElement(g);
 
         // Atualiza listas locais da aba de equipes
         availableUsersModel.removeAllElements();
-        for (User u : userService.listarUsuarios()) availableUsersModel.addElement(u);
+        for (Usuario u : usuarioService.listarUsuarios()) availableUsersModel.addElement(u);
 
         availableProjectsModel.removeAllElements();
-        for (Project p : projectService.listarProjetos()) availableProjectsModel.addElement(p);
+        for (Projeto p : projetoService.listarProjetos()) availableProjectsModel.addElement(p);
     }
 }
